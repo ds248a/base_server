@@ -1,15 +1,23 @@
-# base_server
+package main
 
-Шаблон приложения с логером, метрикой и трассировкой
+import (
+	"context"
+	"go.uber.org/zap"
+	// base
+	"github.com/ds248a/base/app/tracing/ot"
+	"github.com/ds248a/base/logger"
+	pkgNet "github.com/ds248a/base/pkg/net"
+	"github.com/ds248a/base/server"
+	//
+	"github.com/ds248a/base_server/internal/app"
+	"github.com/ds248a/base_server/internal/config"
+)
 
-```go
 func main() {
-	// Основной контекст
 	setupContext()
 	ctx := app.Context()
-	
-	// Конфигурация приложения
 	logger.SetLevel(zap.InfoLevel)
+	logger.Info(ctx, "--== HELLO ==--")
 	err := config.InitGlobalConfig(
 		config.WithAcceptEnvironment{EnvPrefix: "ROUTE"},
 		config.WithSourceFile{FileName: app.ConfigFile},
@@ -22,41 +30,33 @@ func main() {
 	if err != nil {
 		logger.Fatal(ctx, err)
 	}
-
 	if err = setupLogger(); err != nil {
 		logger.Fatalf(ctx, "setup logger: %v", err)
 	}
-	
 	if err = setupMetrics(); err != nil {
 		logger.Fatalf(ctx, "setup metrics: %v", err)
 	}
-	
 	if err = setupTracer(); err != nil {
 		logger.Fatalf(ctx, "setup tracer: %v", err)
 	}
-	
 	var srv *server.APIServer
 	if srv, err = setupServer(ctx); err != nil {
 		logger.Fatalf(ctx, "setup server: %v", err)
 	}
-	
 	var endPointAddress string
 	if endPointAddress, err = app.ServerEndpoint.Maybe(ctx); err != nil {
 		logger.Fatalf(ctx, "get server endpoint from config: %v", err)
 	}
-
 	var ep *pkgNet.Endpoint
 	if ep, err = pkgNet.ParseEndpoint(endPointAddress); err != nil {
 		logger.Fatalf(ctx, "parse server endpoint (%s): %v", endPointAddress, err)
 	}
-
 	gracefulDuration, _ := app.ServerGracefulShutdown.Maybe(ctx)
 	if err = srv.Run(ctx, ep, server.RunWithGracefulStop(gracefulDuration)); err != nil {
 		logger.Fatalf(ctx, "run server: %v", err)
 	}
-
 	WhenHaveTracerProvider(func(tp ot.TracerProvider) {
 		_ = tp.Shutdown(context.Background())
 	})
+	logger.Info(ctx, "--== BYE ==--")
 }
-```
